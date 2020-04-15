@@ -18,33 +18,36 @@ test_map = {
 
 # 'RDW': 'mean_corpuscular_volume_f30040_0_0' ??
 
-df_uk = pd.read_csv("blood_test_uk.csv")
-df_il = pd.read_csv("blood_test_il.csv")
+df_uk = pd.read_csv("../research/blood_test_uk.csv")
+df_il = pd.read_csv("../research/blood_test_il.csv")
+
+df_uk_added_data = pd.read_csv("../research/ICD10_UK.csv")
+
+# Create a DataSet for UK data that has values from both files
+df_uk = df_uk.merge(df_uk_added_data, on="FID")
+
+# Keep only the ill patients in dataSet UK
+df_uk_fatty_liver = df_uk[df_uk["K760"] == 2]
+
+print(df_uk_fatty_liver[2:3])
+
 
 for t in test_map:
-    """ 
-    Comparision Steps:
-        1. Get data from both files
-        2. Split data in each file to the following two datasets: Male and Female
-        3. For Each Test that we want to preform:
-            3.1. Remove empty cells from each dataset
-            3.2. Preform preform MEAN, STD,   
-    """
 
     mean_il = df_il[t].mean()
-    mean_uk = df_uk[test_map[t]].mean()
+    mean_uk = df_uk_fatty_liver[test_map[t]].mean()
 
     std_il = df_il[t].std()
-    std_uk = df_uk[test_map[t]].std()
+    std_uk = df_uk_fatty_liver[test_map[t]].std()
 
     smd = abs((mean_il - mean_uk)) / math.sqrt(std_il * std_il + std_uk * std_uk)
 
     df_il[t] = (df_il[t] - df_il[t].mean()) / df_il[t].std()
-    df_uk[test_map[t]] = (df_uk[test_map[t]] - df_uk[test_map[t]].mean()) / df_uk[
-        test_map[t]
-    ].std()
+    df_uk[test_map[t]] = (
+        df_uk_fatty_liver[test_map[t]] - df_uk_fatty_liver[test_map[t]].mean()
+    ) / df_uk_fatty_liver[test_map[t]].std()
 
-    test = stats.ks_2samp(df_il[t], df_uk[test_map[t]])
+    test = stats.ks_2samp(df_il[t], df_uk_fatty_liver[test_map[t]])
     # print(t, mean_il, mean_uk, 'ks reject:', test[1] < 0.05)
     print(
         t,
@@ -57,5 +60,3 @@ for t in test_map:
         "std_uk:",
         std_uk,
     )
-
-print(df_il)

@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import math
 
-df = pd.read_csv("blood_test_il.csv")
+df = pd.read_csv("../research/blood_test_il.csv")
 dataSet = []
 
 blood_normals_male = {
