@@ -2,7 +2,10 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+import dash
+import dash_core_components as dcc
+import dash_html_components as html
 import math
 
 features = {
@@ -26,23 +29,25 @@ features = {
     "PLT": "platelet_count_f30080_0_0",
     "MPV": "mean_platelet_thrombocyte_volume_f30100_0_0",
     # Uncatagorized
-    # "Albumin_blood": "albumin_f30600_0_0",
-    # "Alkaline_Phosphatase_blood": "alkaline_phosphatase_f30610_0_0",
-    # "Calcium_total_blood": "calcium_f30680_0_0",
-    # "Cholesterol_blood": "cholesterol_f30690_0_0",
-    # "Creatinin_blood": "creatinine_f30700_0_0",
-    # "GammaGT_blood": "gamma_glutamyltransferase_f30730_0_0",
-    # "Glucose_blood": "glucose_f30740_0_0",
-    # "HDL_cholesterol_blood": "hdl_cholesterol_f30760_0_0",
-    # "LDL_cholesterol_calculated_blood": "ldl_direct_f30780_0_0",
-    # "Bilirubin_total_blood": "total_bilirubin_f30840_0_0",
-    # "Triglycerides_blood": "triglycerides_f30870_0_0",
+    "Albumin_blood": "albumin_f30600_0_0",
+    "Alkaline_Phosphatase_blood": "alkaline_phosphatase_f30610_0_0",
+    "Calcium_total_blood": "calcium_f30680_0_0",
+    "Cholesterol_blood": "cholesterol_f30690_0_0",
+    "Creatinin_blood": "creatinine_f30700_0_0",
+    "GammaGT_blood": "gamma_glutamyltransferase_f30730_0_0",
+    "Glucose_blood": "glucose_f30740_0_0",
+    "HDL_cholesterol_blood": "hdl_cholesterol_f30760_0_0",
+    "LDL_cholesterol_calculated_blood": "ldl_direct_f30780_0_0",
+    "Bilirubin_total_blood": "total_bilirubin_f30840_0_0",
+    "Triglycerides_blood": "triglycerides_f30870_0_0",
+    "wide_range_CRP": "creactive_protein_f30710_0_0",
+    "Phosphorus_blood": "phosphate_f30810_0_0",
+    "age_computed": "age_when_attended_assessment_centre_f21003_0_0",
+    "gender": "sex_f31_0_0",
 }
 
-all_features = {
-    "w": "creactive_protein_f30710_0_0",  # Is this equal to wide range or high sensitive
-    "ab": "phosphate_f30810_0_0",  # What is this
-}
+pca_data = []
+merged_df = []
 
 
 def filter_uk_data():
@@ -51,9 +56,7 @@ def filter_uk_data():
 
     # Create DataSet to return
     wanted_columns = list(features.values())
-    wanted_columns.extend(
-        ["FID", "age_when_attended_assessment_centre_f21003_0_0", "sex_f31_0_0"]
-    )
+    wanted_columns.extend(["FID"])
     df_uk = df_uk.loc[:, wanted_columns]
 
     # Drop rows that have NaN values in them
@@ -62,9 +65,8 @@ def filter_uk_data():
     # Create a DataSet for UK data that has values from both files
     df_uk = df_uk.merge(df_uk_added_data, on="FID")
 
-    # Replace numbers with Label value
-    df_uk["K760"].replace(1, "Positive", inplace=True)
-    df_uk["K760"].replace(2, "Control", inplace=True)
+    df_uk["sex_f31_0_0"].replace("Male", 1, inplace=True)
+    df_uk["sex_f31_0_0"].replace("Female", 2, inplace=True)
 
     return df_uk
 
@@ -76,13 +78,9 @@ def filter_il_data():
 
     # Filter dataSet values
     wanted_columns = list(features.keys())
-    wanted_columns.extend(["hospital_patient_id", "age_computed", "gender"])
+    wanted_columns.extend(["hospital_patient_id"])
 
     df_il = df_il.loc[:, wanted_columns]
-
-    # Replace numbers with Gender value
-    df_il["gender"].replace(1, "Male", inplace=True)
-    df_il["gender"].replace(2, "Female", inplace=True)
 
     # Keep only the latest test of the patient
     df_il = df_il.drop_duplicates(subset="hospital_patient_id", keep="last")
@@ -91,7 +89,7 @@ def filter_il_data():
     df_il = df_il.dropna()
 
     for illness in df_uk_added_data.columns[2:]:
-        df_il[illness] = "Malram"
+        df_il[illness] = 3
 
     return df_il
 
@@ -101,13 +99,12 @@ def merge_df(df_uk, df_il):
     # Change column names to match df_uk
     all_columns = {
         "hospital_patient_id": "FID",
-        "age_computed": "age_when_attended_assessment_centre_f21003_0_0",
-        "gender": "sex_f31_0_0",
     }
     all_columns.update(features)
     df_il = df_il.rename(columns=all_columns)
 
     df_uk = df_uk.drop(columns=["IID", "FID"])
+    df_il = df_il.drop(columns=["FID"])
 
     # Merge datasets
     df_uk = df_uk.append(df_il)
@@ -116,32 +113,33 @@ def merge_df(df_uk, df_il):
     return df_uk
 
 
-if __name__ == "__main__":
-    df_uk = filter_uk_data()
-    df_il = filter_il_data()
-    merged_df = merge_df(df_uk=df_uk, df_il=df_il)
-
-    x = merged_df.loc[:, features.values()].values
+def calculate_pca(dataFrame, n_components=4):
+    x = dataFrame.loc[:, features.values()].values
     x = StandardScaler().fit_transform(x)  # normalizing the features
 
     feat_cols = ["feature" + str(i) for i in range(x.shape[1])]
     normalized_data = pd.DataFrame(x, columns=feat_cols)
 
-    pca_fatty_liver = PCA(n_components=2)
-    principalComponent_liver = pca_fatty_liver.fit_transform(x)
+    pca_data = PCA(n_components=n_components)
+    principalComponent = pca_data.fit_transform(x)
 
-    principal_liver_Df = pd.DataFrame(
-        data=principalComponent_liver,
-        columns=["principal component 1", "principal component 2"],
+    print(
+        "Explained variation per principal component: {}".format(
+            pca_data.explained_variance_ratio_
+        )
     )
 
-    plt.figure()
-    plt.figure(figsize=(10, 10))
-    plt.xticks(fontsize=12)
-    plt.yticks(fontsize=14)
-    plt.xlabel("Principal Component - 1", fontsize=20)
-    plt.ylabel("Principal Component - 2", fontsize=20)
-    plt.title("Principal Component Analysis of Fatty Liver", fontsize=20)
+    principal_data = pd.DataFrame(
+        data=principalComponent,
+        columns=["principal component " + str(i + 1) for i in range(n_components)],
+    )
+
+    return principal_data
+
+
+def create_axis(dataSet, pca_data, pca_components, illness, count=1000):
+    axis = []
+
     targets = [
         "Positive-Female",
         "Positive-Male",
@@ -154,17 +152,98 @@ if __name__ == "__main__":
     for target, color in zip(targets, colors):
         target_gender = target.split("-")
 
-        indicesToKeep = (merged_df["K760"] == target_gender[0]) & (
-            merged_df["sex_f31_0_0"] == target_gender[1]
+        indicesToKeep = (dataSet[illness] == target_gender[0]) & (
+            dataSet["sex_f31_0_0"] == target_gender[1]
         )
 
-        plt.scatter(
-            principal_liver_Df.loc[indicesToKeep, "principal component 1"],
-            principal_liver_Df.loc[indicesToKeep, "principal component 2"],
-            facecolors="none",
-            edgecolors=color,
+        # place = 0
+        # counter = 0
+        # for i in range(indicesToKeep.shape[0]):
+        #     if indicesToKeep[i] == True and counter <= count:
+        #         place = i
+        #         counter += 1
+
+        trace = go.Scattergl(
+            # x=pca_data[:place].loc[indicesToKeep[:place], pca_components[0]],
+            # y=pca_data[:place].loc[indicesToKeep[:place], pca_components[1]],
+            x=pca_data.loc[indicesToKeep, pca_components[0]],
+            y=pca_data.loc[indicesToKeep, pca_components[1]],
+            mode="markers",
+            name=target,
+            marker=dict(color=color),
         )
 
-    plt.legend(targets, prop={"size": 15})
+        axis.append(trace)
 
-    plt.show()
+    return axis
+
+
+external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
+app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+
+
+def display_charts(pca_data_columns, options):
+    # Create the Column Options to pick from - PCA
+    pca_options = []
+    for col in pca_data_columns:
+        pca_options.append({"label": col, "value": col})
+
+    # Create the Dropdown options - Illnesses
+    illness_options = []
+    for illness in options:
+        illness_options.append({"label": illness, "value": illness})
+
+    app.layout = html.Div(
+        [
+            html.Div(
+                [
+                    dcc.Dropdown(id="illness", options=illness_options, value="K760"),
+                    dcc.Checklist(
+                        id="principle-components",
+                        options=pca_options,
+                        value=["principal component 1", "principal component 2"],
+                        labelStyle={"display": "inline-block"},
+                    ),
+                ],
+                style={"width": "49%", "display": "inline-block"},
+            ),
+            html.Div([dcc.Graph(id="graph")]),
+        ]
+    )
+
+    app.run_server(debug=True)
+
+
+@app.callback(
+    dash.dependencies.Output("graph", "figure"),
+    [
+        dash.dependencies.Input("illness", "value"),
+        dash.dependencies.Input("principle-components", "value"),
+    ],
+)
+def change_graph_data(illness, principle_components):
+    data = create_axis(merged_df, pca_data, principle_components, illness)
+
+    return {
+        "data": data,
+    }
+
+
+if __name__ == "__main__":
+    df_uk = filter_uk_data()
+    df_il = filter_il_data()
+    merged_df = merge_df(df_uk=df_uk, df_il=df_il)
+
+    pca_data = calculate_pca(merged_df)
+
+    # Replace numbers with Gender value
+    merged_df["sex_f31_0_0"].replace(1, "Male", inplace=True)
+    merged_df["sex_f31_0_0"].replace(2, "Female", inplace=True)
+
+    # Replace numbers with Label value
+    for illness in ["K760", "D500", "D501", "D508", "D509"]:
+        merged_df[illness].replace(1, "Positive", inplace=True)
+        merged_df[illness].replace(2, "Control", inplace=True)
+        merged_df[illness].replace(3, "Malram", inplace=True)
+
+    display_charts(pca_data.columns, ["K760", "D500", "D501", "D508", "D509"])
