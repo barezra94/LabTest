@@ -1,8 +1,11 @@
 import pandas as pd
 import numpy as np
+
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
+from contrastive import CPCA
 import plotly.graph_objects as go
+
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
@@ -50,71 +53,11 @@ pca_data = []
 merged_df = []
 
 
-def filter_uk_data():
-    df_uk = pd.read_csv("../research/blood_test_uk.csv")
-    df_uk_added_data = pd.read_csv("../research/ICD10_UK.csv")
-
-    # Create DataSet to return
-    wanted_columns = list(features.values())
-    wanted_columns.extend(["FID"])
-    df_uk = df_uk.loc[:, wanted_columns]
-
-    # Drop rows that have NaN values in them
-    df_uk = df_uk.dropna()
-
-    # Create a DataSet for UK data that has values from both files
-    df_uk = df_uk.merge(df_uk_added_data, on="FID")
-
-    df_uk["sex_f31_0_0"].replace("Male", 1, inplace=True)
-    df_uk["sex_f31_0_0"].replace("Female", 2, inplace=True)
-
-    return df_uk
-
-
-def filter_il_data():
-    # TODO: Maybe change to read straight from excel file
-    df_il = pd.read_csv("../research/blood_test_il.csv")
-    df_uk_added_data = pd.read_csv("../research/ICD10_UK.csv")
-
-    # Filter dataSet values
-    wanted_columns = list(features.keys())
-    wanted_columns.extend(["hospital_patient_id"])
-
-    df_il = df_il.loc[:, wanted_columns]
-
-    # Keep only the latest test of the patient
-    df_il = df_il.drop_duplicates(subset="hospital_patient_id", keep="last")
-
-    # Drop rows that have NaN in them
-    df_il = df_il.dropna()
-
-    for illness in df_uk_added_data.columns[2:]:
-        df_il[illness] = 3
-
-    return df_il
-
-
-def merge_df(df_uk, df_il):
-
-    # Change column names to match df_uk
-    all_columns = {
-        "hospital_patient_id": "FID",
-    }
-    all_columns.update(features)
-    df_il = df_il.rename(columns=all_columns)
-
-    df_uk = df_uk.drop(columns=["IID", "FID"])
-    df_il = df_il.drop(columns=["FID"])
-
-    # Merge datasets
-    df_uk = df_uk.append(df_il)
-    df_uk = df_uk.reset_index(drop=True)
-
-    return df_uk
-
-
 def calculate_pca(dataFrame, n_components=4):
-    x = dataFrame.loc[:, features.values()].values
+    all_features = features.values()
+    # all_features("location")
+
+    x = dataFrame.loc[:, all_features].values
     x = StandardScaler().fit_transform(x)  # normalizing the features
 
     feat_cols = ["feature" + str(i) for i in range(x.shape[1])]
@@ -134,11 +77,68 @@ def calculate_pca(dataFrame, n_components=4):
         columns=["principal component " + str(i + 1) for i in range(n_components)],
     )
 
-    return principal_data
+    return principal_data, pca_data.explained_variance_ratio_
+
+
+def calculate_cpca(dataFrame, illness):
+    # Remove the illnesses from the data and background frames
+    df = dataFrame.loc[:, dataFrame.columns.difference(["K760", "D50*"])]
+
+    data = df[(dataFrame[illness] == 2) | (dataFrame[illness] == 1)]
+    data = data.values
+    background = df[dataFrame[illness] == 3]
+    background = background.values
+
+    labels = (
+        len(dataFrame.loc[(dataFrame["sex_f31_0_0"] == 1) & (dataFrame[illness] == 1)])
+        * [0]
+        + len(
+            dataFrame.loc[(dataFrame["sex_f31_0_0"] == 2) & (dataFrame[illness] == 1)]
+        )
+        * [1]
+        + len(
+            dataFrame.loc[(dataFrame["sex_f31_0_0"] == 1) & (dataFrame[illness] == 2)]
+        )
+        * [2]
+        + len(
+            dataFrame.loc[(dataFrame["sex_f31_0_0"] == 2) & (dataFrame[illness] == 2)]
+        )
+        * [3]
+    )
+
+    # mdl = CPCA(n_components=4)
+    mdl = CPCA()
+    projected_data = mdl.fit_transform(
+        data, background, plot=True, active_labels=labels
+    )
+
+    return projected_data
+
+
+def calculate_cpca_alpha(dataFrame, alpha, illness):
+    # Remove the illnesses from the data and background frames
+    df = dataFrame.loc[:, dataFrame.columns.difference(["K760", "D50*"])]
+
+    data = df[(dataFrame[illness] == 2) | (dataFrame[illness] == 1)]
+    data = data.values
+    background = df[dataFrame[illness] == 3]
+    background = background.values
+
+    print("Num of features:", len(features))
+
+    mdl = CPCA(n_components=len(features))
+    projected_data = mdl.fit_transform(
+        data, background, alpha_selection="manual", alpha_value=alpha
+    )
+
+    return projected_data
 
 
 def create_axis(dataSet, pca_data, pca_components, illness, count=1000):
     axis = []
+
+    if count > dataSet.shape[0]:
+        count = dataSet.shape[0]
 
     targets = [
         "Positive-Female",
@@ -164,6 +164,8 @@ def create_axis(dataSet, pca_data, pca_components, illness, count=1000):
         #         counter += 1
 
         trace = go.Scattergl(
+            # x=pca_data[:count].loc[indicesToKeep[:count], pca_components[0]],
+            # y=pca_data[:count].loc[indicesToKeep[:count], pca_components[1]],
             # x=pca_data[:place].loc[indicesToKeep[:place], pca_components[0]],
             # y=pca_data[:place].loc[indicesToKeep[:place], pca_components[1]],
             x=pca_data.loc[indicesToKeep, pca_components[0]],
@@ -182,16 +184,20 @@ external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
 
-def display_charts(pca_data_columns, options):
+def display_charts(pca_data, options, explained_ratio):
     # Create the Column Options to pick from - PCA
     pca_options = []
-    for col in pca_data_columns:
+    for col in pca_data.columns:
         pca_options.append({"label": col, "value": col})
 
     # Create the Dropdown options - Illnesses
     illness_options = []
     for illness in options:
         illness_options.append({"label": illness, "value": illness})
+
+    # explained_string = ""
+    # for ratio in explained_ratio:
+    #     explained_string += str(ratio) + ", "
 
     app.layout = html.Div(
         [
@@ -203,6 +209,10 @@ def display_charts(pca_data_columns, options):
                         options=pca_options,
                         value=["principal component 1", "principal component 2"],
                         labelStyle={"display": "inline-block"},
+                    ),
+                    # html.Div(children=explained_string),
+                    dcc.Slider(
+                        id="amount-slider", min=100, max=500000, step=100, value=420000,
                     ),
                 ],
                 style={"width": "49%", "display": "inline-block"},
@@ -219,31 +229,54 @@ def display_charts(pca_data_columns, options):
     [
         dash.dependencies.Input("illness", "value"),
         dash.dependencies.Input("principle-components", "value"),
+        dash.dependencies.Input("amount-slider", "value"),
     ],
 )
-def change_graph_data(illness, principle_components):
-    data = create_axis(merged_df, pca_data, principle_components, illness)
+def change_graph_data(illness, principle_components, count):
+    data = create_axis(merged_df, pca_data, principle_components, illness, count)
 
     return {
         "data": data,
+        "layout": dict(
+            xaxis={"title": principle_components[0]},
+            yaxis={"title": principle_components[1]},
+        ),
     }
 
 
 if __name__ == "__main__":
+
+    df_uk = pd.read_csv("../research/blood_test_uk.csv")
+    df_il = pd.read_csv("../research/blood_test_il.csv")
+
     df_uk = filter_uk_data()
     df_il = filter_il_data()
     merged_df = merge_df(df_uk=df_uk, df_il=df_il)
 
-    pca_data = calculate_pca(merged_df)
+    # calculate_cpca(merged_df, "K760")
+    raw_pca_data = calculate_cpca(merged_df, "D50*")
+
+    # pca_data = pd.DataFrame(
+    #     {
+    #         "principal component 1": np.transpose(raw_pca_data[0]),
+    #         "principal component 2": np.transpose(raw_pca_data[1]),
+    #         "principal component 3": np.transpose(raw_pca_data[2]),
+    #         "principal component 4": np.transpose(raw_pca_data[3]),
+    #     }
+    # )
+
+    # print(pca_data)
+
+    # pca_data, explained_ratio = calculate_pca(merged_df)
 
     # Replace numbers with Gender value
     merged_df["sex_f31_0_0"].replace(1, "Male", inplace=True)
     merged_df["sex_f31_0_0"].replace(2, "Female", inplace=True)
 
     # Replace numbers with Label value
-    for illness in ["K760", "D500", "D501", "D508", "D509"]:
-        merged_df[illness].replace(1, "Positive", inplace=True)
-        merged_df[illness].replace(2, "Control", inplace=True)
+    for illness in ["K760", "D50*"]:
+        merged_df[illness].replace(1, "Control", inplace=True)
+        merged_df[illness].replace(2, "Positive", inplace=True)
         merged_df[illness].replace(3, "Malram", inplace=True)
 
-    display_charts(pca_data.columns, ["K760", "D500", "D501", "D508", "D509"])
+    # display_charts(pca_data, ["K760", "D50*"], 0)
