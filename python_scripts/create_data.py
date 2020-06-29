@@ -181,16 +181,13 @@ def add_invalid_column(data):
     # If at least one test is not in the valid value range then value of column will be 0 (False)
     data["allTestValid"] = 1
 
-    for key in values.data_values:
+    for key in values.features_values:
         # Gets data from dictonary
-        name = values.data_values[key]["name"]
-        min_value = values.data_values[key]["value"][0]
-        max_value = values.data_values[key]["value"][1]
+        min_value = values.features_values[key][0]
+        max_value = values.features_values[key][1]
 
         # Change values of "allTestValid" according to test values in range
-        data.loc[
-            (data[name] > max_value) | (data[name] < min_value), "allTestValid"
-        ] = 0
+        data.loc[(data[key] > max_value) | (data[key] < min_value), "allTestValid"] = 0
 
     return data
 
@@ -200,3 +197,27 @@ def normalize_data(data):
     transformed_data = scaler.fit_transform(data)
 
     return transformed_data
+
+
+# Uses a different database to create the uk data
+def create_data_new(path):
+    df_uk = pd.read_csv(path)
+    print(df_uk)
+
+    df_uk_added_data = pd.read_csv("../research/ICD10_UK.csv")
+
+    # Drop rows that have NaN values in them
+    df_uk = df_uk.dropna()
+
+    # Rename column for merge
+    df_uk = df_uk.rename(columns={"eid": "FID"})
+
+    # Create a DataSet for UK data that has values from both files
+    df_uk = df_uk.merge(df_uk_added_data, on="FID")
+
+    df_uk["sex"].replace("Male", 1, inplace=True)
+    df_uk["sex"].replace("Female", 2, inplace=True)
+
+    print(df_uk)
+
+    return df_uk
