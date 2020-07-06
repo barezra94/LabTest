@@ -5,6 +5,8 @@ import numpy
 import seaborn
 import matplotlib.pyplot as plt
 
+from sklearn.preprocessing import StandardScaler
+
 if __name__ == "__main__":
     # data = cd.create_data_new("../research/ukbb_new_tests.csv")
     data = cd.create_data()
@@ -13,7 +15,8 @@ if __name__ == "__main__":
     data = cd.add_invalid_column(data)
 
     # Normalize the Data
-    normalized_data = cd.normalize_data(data)
+    scaler = StandardScaler()
+    normalized_data = scaler.fit_transform(data)
 
     # Get the mean of all the data rows
     mean = normalized_data.mean(axis=0)
@@ -24,8 +27,11 @@ if __name__ == "__main__":
     control = data[data["K760"] == 1]
 
     # Normalize Ill and Control patients data
-    normalized_ill = cd.normalize_data(ill)
-    normalized_control = cd.normalize_data(control)
+    normalized_ill = scaler.transform(ill)
+    normalized_control = scaler.transform(control)
+    print(normalized_data.shape)
+    print(normalized_ill.shape)
+    print(normalized_control.shape)
 
     mean = mean.reshape(1, -1)
 
@@ -34,22 +40,28 @@ if __name__ == "__main__":
 
     # Keep only rows that have at least one test that is not in range and compute diff
     invalid_range = data[data["allTestValid"] == 0]
-    normalized_invalid_range = cd.normalize_data(invalid_range)
+    print(invalid_range.shape)
+    normalized_invalid_range = scaler.transform(invalid_range)
     invalid_range_diff = sp.spatial.distance.cdist(mean, normalized_invalid_range)
 
     # Remove values that are high
     ill_diff = ill_diff[0]
 
+    print(sorted(ill_diff)[:10])
+
     control_diff = control_diff[0]
     # while control_diff.argmax() > 120:
-    control_diff = numpy.delete(control_diff, control_diff.argmax())
-    control_diff = numpy.delete(control_diff, control_diff.argmax())
-    control_diff = numpy.delete(control_diff, control_diff.argmax())
-    control_diff = numpy.delete(control_diff, control_diff.argmax())
-    control_diff = numpy.delete(control_diff, control_diff.argmax())
+    # control_diff = numpy.delete(control_diff, control_diff.argmax())
+    # control_diff = numpy.delete(control_diff, control_diff.argmax())
+    # control_diff = numpy.delete(control_diff, control_diff.argmax())
+    # control_diff = numpy.delete(control_diff, control_diff.argmax())
+    # control_diff = numpy.delete(control_diff, control_diff.argmax())
+
+    print(sorted(control_diff)[:10])
 
     invalid_range_diff = invalid_range_diff[0]
 
+    print(sorted(invalid_range_diff)[:10])
     seaborn.distplot(
         control_diff,
         label="control",

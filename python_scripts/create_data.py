@@ -188,6 +188,8 @@ def add_invalid_column(data):
 
         # Change values of "allTestValid" according to test values in range
         data.loc[(data[key] > max_value) | (data[key] < min_value), "allTestValid"] = 0
+        df = data.loc[(data[key] > max_value) | (data[key] < min_value)]
+        print(key, df.shape)
 
     return data
 
