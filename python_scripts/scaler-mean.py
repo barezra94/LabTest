@@ -3,16 +3,22 @@ import scipy as sp
 
 import numpy
 import seaborn
+import pandas as pd
 import matplotlib.pyplot as plt
+import values as vs
 
 from sklearn.preprocessing import StandardScaler
 
 if __name__ == "__main__":
-    # data = cd.create_data_new("../research/ukbb_new_tests.csv")
-    data = cd.create_data()
+    data_male, data_female = cd.create_data_new("../research/ukbb_new_tests.csv")
+    # data = cd.create_data()
 
     # Add invalid Test Column
-    data = cd.add_invalid_column(data)
+    data_female = cd.add_invalid_column(data_female, vs.features_values_female)
+    data_male = cd.add_invalid_column(data_male, vs.features_values_male)
+
+    # Join to one dataframe for normalization
+    data = pd.concat([data_female, data_male])
 
     # Normalize the Data
     scaler = StandardScaler()
@@ -23,20 +29,26 @@ if __name__ == "__main__":
 
     # Select all ill patients and all control patients, compute diff
     # and compute distance from overall mean
-    ill = data[data["K760"] == 2]
-    control = data[data["K760"] == 1]
+    ill_female = data[(data["D70*"] == 2) & (data["sex"] == 2)]
+    ill_male = data[(data["D70*"] == 2) & (data["sex"] == 1)]
+    control_female = data[(data["D70*"] == 1) & (data["sex"] == 2)]
+    control_male = data[(data["D70*"] == 1) & (data["sex"] == 1)]
+
+    print(ill_female.shape)
+    print(ill_male.shape)
 
     # Normalize Ill and Control patients data
-    normalized_ill = scaler.transform(ill)
-    normalized_control = scaler.transform(control)
-    print(normalized_data.shape)
-    print(normalized_ill.shape)
-    print(normalized_control.shape)
+    normalized_ill_female = scaler.transform(ill_female)
+    normalized_ill_male = scaler.transform(ill_male)
+    normalized_control_female = scaler.transform(control_female)
+    normalized_control_male = scaler.transform(control_male)
 
     mean = mean.reshape(1, -1)
 
-    ill_diff = sp.spatial.distance.cdist(mean, normalized_ill)
-    control_diff = sp.spatial.distance.cdist(mean, normalized_control)
+    ill_diff_female = sp.spatial.distance.cdist(mean, normalized_ill_female)
+    ill_diff_male = sp.spatial.distance.cdist(mean, normalized_ill_male)
+    control_diff_female = sp.spatial.distance.cdist(mean, normalized_control_female)
+    control_diff_male = sp.spatial.distance.cdist(mean, normalized_control_male)
 
     # Keep only rows that have at least one test that is not in range and compute diff
     invalid_range = data[data["allTestValid"] == 0]
@@ -45,32 +57,35 @@ if __name__ == "__main__":
     invalid_range_diff = sp.spatial.distance.cdist(mean, normalized_invalid_range)
 
     # Remove values that are high
-    ill_diff = ill_diff[0]
+    ill_diff_female = ill_diff_female[0]
+    ill_diff_male = ill_diff_male[0]
 
-    print(sorted(ill_diff)[:10])
-
-    control_diff = control_diff[0]
-    # while control_diff.argmax() > 120:
-    # control_diff = numpy.delete(control_diff, control_diff.argmax())
-    # control_diff = numpy.delete(control_diff, control_diff.argmax())
-    # control_diff = numpy.delete(control_diff, control_diff.argmax())
-    # control_diff = numpy.delete(control_diff, control_diff.argmax())
-    # control_diff = numpy.delete(control_diff, control_diff.argmax())
-
-    print(sorted(control_diff)[:10])
+    control_diff_female = control_diff_female[0]
+    control_diff_male = control_diff_male[0]
 
     invalid_range_diff = invalid_range_diff[0]
 
-    print(sorted(invalid_range_diff)[:10])
     seaborn.distplot(
-        control_diff,
-        label="control",
+        control_diff_female,
+        label="control-female",
         # hist_kws={"cumulative": True},
         kde_kws={"cumulative": True},
     )
     seaborn.distplot(
-        ill_diff,
-        label="ill",
+        ill_diff_female,
+        label="ill-female",
+        # hist_kws={"cumulative": True},
+        kde_kws={"cumulative": True},
+    )
+    seaborn.distplot(
+        control_diff_male,
+        label="control-male",
+        # hist_kws={"cumulative": True},
+        kde_kws={"cumulative": True},
+    )
+    seaborn.distplot(
+        ill_diff_male,
+        label="ill-male",
         # hist_kws={"cumulative": True},
         kde_kws={"cumulative": True},
     )

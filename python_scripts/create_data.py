@@ -177,14 +177,14 @@ def preform_pca(X_train, X_test):
     return X_train, X_test
 
 
-def add_invalid_column(data):
+def add_invalid_column(data, features_list):
     # If at least one test is not in the valid value range then value of column will be 0 (False)
     data["allTestValid"] = 1
 
-    for key in values.features_values:
+    for key in features_list:
         # Gets data from dictonary
-        min_value = values.features_values[key][0]
-        max_value = values.features_values[key][1]
+        min_value = features_list[key][0]
+        max_value = features_list[key][1]
 
         # Change values of "allTestValid" according to test values in range
         data.loc[(data[key] > max_value) | (data[key] < min_value), "allTestValid"] = 0
@@ -206,7 +206,7 @@ def create_data_new(path):
     df_uk = pd.read_csv(path)
     print(df_uk)
 
-    df_uk_added_data = pd.read_csv("../research/ICD10_UK.csv")
+    df_uk_added_data = pd.read_csv("../research/ICD10_ukbb_new.csv")
 
     # Drop rows that have NaN values in them
     df_uk = df_uk.dropna()
@@ -220,6 +220,75 @@ def create_data_new(path):
     df_uk["sex"].replace("Male", 1, inplace=True)
     df_uk["sex"].replace("Female", 2, inplace=True)
 
-    print(df_uk)
+    # Create new columns for similar diseases
+    df_uk["D50*"] = df_uk["D500"]
 
-    return df_uk
+    df_uk.loc[
+        (df_uk["D500"] == 2)
+        | (df_uk["D501"] == 2)
+        | (df_uk["D508"] == 2)
+        | (df_uk["D509"] == 2),
+        "D50*",
+    ] = 2
+
+    df_uk["D63*"] = df_uk["D630"]
+
+    df_uk.loc[
+        (df_uk["D630"] == 2) | (df_uk["D631"] == 2) | (df_uk["D638"] == 2), "D63*",
+    ] = 2
+
+    df_uk["D64*"] = df_uk["D640"]
+
+    df_uk.loc[
+        (df_uk["D640"] == 2)
+        | (df_uk["D641"] == 2)
+        | (df_uk["D648"] == 2)
+        | (df_uk["D642"] == 2)
+        | (df_uk["D643"] == 2)
+        | (df_uk["D644"] == 2),
+        "D64*",
+    ] = 2
+
+    df_uk["D70*"] = df_uk["D70"]
+
+    df_uk.loc[
+        (df_uk["D70"] == 2)
+        | (df_uk["D700"] == 2)
+        | (df_uk["D701"] == 2)
+        | (df_uk["D702"] == 2)
+        | (df_uk["D703"] == 2)
+        | (df_uk["D704"] == 2)
+        | (df_uk["D708"] == 2)
+        | (df_uk["D709"] == 2),
+        "D70*",
+    ] = 2
+
+    df_uk = df_uk.drop(
+        columns=[
+            "D500",
+            "D501",
+            "D508",
+            "D509",
+            "D630",
+            "D631",
+            "D638",
+            "D640",
+            "D641",
+            "D642",
+            "D643",
+            "D644",
+            "D648",
+            "D509",
+            "D70",
+            "D700",
+            "D701",
+            "D702",
+            "D703",
+            "D704",
+            "D708",
+            "D709",
+            "visit_date",
+        ]
+    )
+
+    return df_uk[df_uk["sex"] == 1], df_uk[df_uk["sex"] == 2]
