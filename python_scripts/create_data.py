@@ -204,13 +204,18 @@ def normalize_data(data):
 # Uses a different database to create the uk data
 def create_data_new(path):
     df_uk = pd.read_csv(path)
-    print(df_uk)
 
     df_uk_added_data = pd.read_csv("../research/ICD10_ukbb_new.csv")
 
+    print("All Data Shape: ", df_uk.shape)
     # Drop rows that have NaN values in them
-    df_uk = df_uk.dropna()
+    # Drop the Oestradiol (pmol/L) and Rheumatoid factor (IU/ml)
+    # because the have too many NaN values
 
+    # df_uk = df_uk.drop(columns=["Oestradiol (pmol/L)", "Rheumatoid factor (IU/ml)"])
+
+    # df_uk = df_uk.dropna()
+    # print("After dropping NaN rows: ", df_uk.shape)
     # Rename column for merge
     df_uk = df_uk.rename(columns={"eid": "FID"})
 
@@ -220,6 +225,8 @@ def create_data_new(path):
     df_uk["sex"].replace("Male", 1, inplace=True)
     df_uk["sex"].replace("Female", 2, inplace=True)
 
+    df_uk["K760"].replace(2, 0, inplace=True)
+
     # Create new columns for similar diseases
     df_uk["D50*"] = df_uk["D500"]
 
@@ -227,27 +234,37 @@ def create_data_new(path):
         (df_uk["D500"] == 2)
         | (df_uk["D501"] == 2)
         | (df_uk["D508"] == 2)
-        | (df_uk["D509"] == 2),
-        "D50*",
-    ] = 2
-
-    df_uk["D63*"] = df_uk["D630"]
-
-    df_uk.loc[
-        (df_uk["D630"] == 2) | (df_uk["D631"] == 2) | (df_uk["D638"] == 2), "D63*",
-    ] = 2
-
-    df_uk["D64*"] = df_uk["D640"]
-
-    df_uk.loc[
-        (df_uk["D640"] == 2)
+        | (df_uk["D509"] == 2)
+        | (df_uk["D630"] == 2)
+        | (df_uk["D631"] == 2)
+        | (df_uk["D638"] == 2)
+        | (df_uk["D640"] == 2)
         | (df_uk["D641"] == 2)
         | (df_uk["D648"] == 2)
         | (df_uk["D642"] == 2)
         | (df_uk["D643"] == 2)
         | (df_uk["D644"] == 2),
-        "D64*",
-    ] = 2
+        "D50*",
+    ] = 0
+
+    # Part of the D50* - Anemia
+    # df_uk["D63*"] = df_uk["D630"]
+
+    # df_uk.loc[
+    #     (df_uk["D630"] == 2) | (df_uk["D631"] == 2) | (df_uk["D638"] == 2), "D63*",
+    # ] = 2
+
+    # df_uk["D64*"] = df_uk["D640"]
+
+    # df_uk.loc[
+    #     (df_uk["D640"] == 2)
+    #     | (df_uk["D641"] == 2)
+    #     | (df_uk["D648"] == 2)
+    #     | (df_uk["D642"] == 2)
+    #     | (df_uk["D643"] == 2)
+    #     | (df_uk["D644"] == 2),
+    #     "D64*",
+    # ] = 2
 
     df_uk["D70*"] = df_uk["D70"]
 
@@ -261,7 +278,7 @@ def create_data_new(path):
         | (df_uk["D708"] == 2)
         | (df_uk["D709"] == 2),
         "D70*",
-    ] = 2
+    ] = 0
 
     df_uk = df_uk.drop(
         columns=[
@@ -290,5 +307,18 @@ def create_data_new(path):
             "visit_date",
         ]
     )
+    print("After Dropping Phenotype Columns: ", df_uk.shape)
 
     return df_uk[df_uk["sex"] == 1], df_uk[df_uk["sex"] == 2]
+
+
+def remove_columns_and_nan(data):
+    # Drop rows that have NaN values in them
+    # Drop the Oestradiol (pmol/L) and Rheumatoid factor (IU/ml)
+    # because the have too many NaN values
+
+    data = data.drop(columns=["Oestradiol (pmol/L)", "Rheumatoid factor (IU/ml)"])
+
+    data = data.dropna()
+
+    return data
