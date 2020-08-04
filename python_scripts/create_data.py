@@ -207,6 +207,12 @@ def create_data_new(path):
 
     df_uk_added_data = pd.read_csv("../research/ICD10_ukbb_new.csv")
 
+    df_uk_added_data_2 = pd.read_csv("../research/alzehimer_parkinson_asthma.csv")
+
+    df_uk_added_data_2 = df_uk_added_data_2.drop(
+        columns=["sex", "visit_date", "visit_age"]
+    )
+
     print("All Data Shape: ", df_uk.shape)
     # Drop rows that have NaN values in them
     # Drop the Oestradiol (pmol/L) and Rheumatoid factor (IU/ml)
@@ -218,9 +224,11 @@ def create_data_new(path):
     # print("After dropping NaN rows: ", df_uk.shape)
     # Rename column for merge
     df_uk = df_uk.rename(columns={"eid": "FID"})
+    df_uk_added_data_2 = df_uk_added_data_2.rename(columns={"eid": "FID"})
 
     # Create a DataSet for UK data that has values from both files
     df_uk = df_uk.merge(df_uk_added_data, on="FID")
+    df_uk = df_uk.merge(df_uk_added_data_2, on="FID")
 
     df_uk["sex"].replace("Male", 1, inplace=True)
     df_uk["sex"].replace("Female", 2, inplace=True)
@@ -280,6 +288,17 @@ def create_data_new(path):
         "D70*",
     ] = 0
 
+    df_uk["alzheimer"] = 1
+    df_uk.loc[(df_uk["Source of alzheimer's disease report"].notna(), "alzheimer")] = 0
+
+    df_uk["parkinsonism"] = 1
+    df_uk.loc[
+        (df_uk["Source of all cause parkinsonism report"].notna(), "parkinsonism")
+    ] = 0
+
+    df_uk["asthma"] = 1
+    df_uk.loc[(df_uk["Source of asthma report"].notna(), "asthma")] = 0
+
     df_uk = df_uk.drop(
         columns=[
             "D500",
@@ -305,6 +324,9 @@ def create_data_new(path):
             "D708",
             "D709",
             "visit_date",
+            "Source of alzheimer's disease report",
+            "Source of all cause parkinsonism report",
+            "Source of asthma report",
         ]
     )
     print("After Dropping Phenotype Columns: ", df_uk.shape)
@@ -312,12 +334,17 @@ def create_data_new(path):
     return df_uk[df_uk["sex"] == 1], df_uk[df_uk["sex"] == 2]
 
 
-def remove_columns_and_nan(data):
+def remove_columns_and_nan(data, features_list=False, illness=False):
     # Drop rows that have NaN values in them
     # Drop the Oestradiol (pmol/L) and Rheumatoid factor (IU/ml)
     # because the have too many NaN values
 
-    data = data.drop(columns=["Oestradiol (pmol/L)", "Rheumatoid factor (IU/ml)"])
+    if features_list == False:
+        data = data.drop(columns=["Oestradiol (pmol/L)", "Rheumatoid factor (IU/ml)"])
+    else:
+        keys_list = list(features_list.keys())
+        keys_list.append(illness)
+        data = data[keys_list]
 
     data = data.dropna()
 

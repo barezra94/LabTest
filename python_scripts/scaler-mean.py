@@ -115,7 +115,7 @@ def display_mean_data(df, y_true):
 
     df_diff = sp.spatial.distance.cdist(mean, df)
 
-    # Normalize diff
+    # Normalize diff - the values need to be between 0 and 1
     mean_key = df_diff.mean()
     std_key = df_diff.std()
 
@@ -137,16 +137,18 @@ if __name__ == "__main__":
     print("All Female Data: ", data_female.shape)
     print("All Male Data: ", data_male.shape)
 
-    confustion_matrixes(data_female, vs.features_values_female, "K760")
+    confustion_matrixes(data_female, vs.features_values_female, "asthma")
 
     # Remove problematic values and NaN values
-    data_female_new = cd.remove_columns_and_nan(data_female)
+    data_female_new = cd.remove_columns_and_nan(
+        data_female, vs.features_values_female, "asthma"
+    )
 
     # Normalize the Data
     scaler = StandardScaler()
     normalized_data = scaler.fit_transform(data_female_new)
 
-    display_mean_data(normalized_data, data_female_new["K760"])
+    display_mean_data(normalized_data, data_female_new["asthma"])
 
     plt.legend()
     plt.show()
