@@ -296,8 +296,8 @@ def create_data_new(path):
         (df_uk["Source of all cause parkinsonism report"].notna(), "parkinsonism")
     ] = 0
 
-    df_uk["asthma"] = 1
-    df_uk.loc[(df_uk["Source of asthma report"].notna(), "asthma")] = 0
+    df_uk["asthma"] = 0
+    df_uk.loc[(df_uk["Source of asthma report"].notna(), "asthma")] = 1
 
     df_uk = df_uk.drop(
         columns=[

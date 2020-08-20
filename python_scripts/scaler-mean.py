@@ -9,7 +9,28 @@ import matplotlib.pyplot as plt
 import values as vs
 
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import roc_auc_score, roc_curve, auc
+from sklearn.metrics import (
+    roc_auc_score,
+    roc_curve,
+    auc,
+    precision_score,
+    recall_score,
+    precision_recall_curve,
+)
+
+final_df = pd.DataFrame(
+    columns=[
+        "Total Number of Patients",
+        "Illness Name",
+        "Number of Ill Females",
+        "Best Test Name",
+        "AUC Score",
+        "Precision Score",
+        "Recall Score",
+        "PR AUC",
+        "Total Mean AUC",
+    ]
+)
 
 
 def confustion_matrixes(data, features_list, tested_illness):
@@ -30,8 +51,9 @@ def confustion_matrixes(data, features_list, tested_illness):
             "TPR",
             "FPR",
             "AUC-Score",
-            # "ROC-FPR",
-            # "ROC-TPR",
+            "Precision Score",
+            "Recall Score",
+            "PR AUC",
         ]
     )
 
@@ -66,6 +88,9 @@ def confustion_matrixes(data, features_list, tested_illness):
         false_positive = false_positive[0]
         false_negative = false_negative[0]
 
+        # precision_score = true_positive / (true_positive + false_positive)
+        # recall_score = true_positive / (true_positive + false_negative)
+
         # Remove NaN Values
         new_data = data[data[key].notna()]
 
@@ -76,9 +101,21 @@ def confustion_matrixes(data, features_list, tested_illness):
         new_values = (new_data[key] - mean_key) / std_key
 
         median_diff = abs(new_values)
-        print(median_diff)
+        # print(median_diff)
 
         value = roc_auc_score(new_data[tested_illness], median_diff)
+        precision_s = precision_score(new_data[tested_illness], median_diff)
+        recall_s = recall_score(new_data[tested_illness], median_diff)
+
+        precision, recall, _ = precision_recall_curve(
+            new_data[tested_illness], median_diff
+        )
+
+        auc_score = auc(recall, precision)
+        print("PR AUC: ", auc_score)
+
+        # print("Precision: ", 1 - precision)
+        # print("Recall: ", 1 - recall)
 
         df = df.append(
             {
@@ -90,22 +127,28 @@ def confustion_matrixes(data, features_list, tested_illness):
                 "TPR": (true_positive / (true_positive + false_negative)),
                 "FPR": (false_positive / (true_negative + false_positive)),
                 "AUC-Score": 1 - value,
+                "Precision Score": precision_s,
+                "Recall Score": recall_s,
+                "PR AUC": auc_score,
                 "median-diff": median_diff,
                 "data": new_data[tested_illness],
             },
             ignore_index=True,
         )
 
+    seaborn.lineplot(recall, precision, label=illness)
+
     new_df = df.sort_values(by="AUC-Score", ascending=False)
     best_auc = new_df.head()
 
-    for index, row in best_auc.iterrows():
-        fpr, tpr, _ = roc_curve(row["data"], row["median-diff"])
-        seaborn.lineplot(tpr, fpr, label=row["Key"] + " AUC: " + str(1 - value))
+    # for index, row in best_auc.iterrows():
+    #     fpr, tpr, _ = roc_curve(row["data"], row["median-diff"])
+    #     seaborn.lineplot(tpr, fpr, label=row["Key"] + " AUC: " + str(row["AUC-Score"]))
 
-    df.to_csv("confusion_matrix.csv")
+    df = df.drop(columns=["median-diff", "data"])
+    df.to_csv("confusion_matrix_" + tested_illness + ".csv")
 
-    return df
+    return df, best_auc
 
 
 def display_mean_data(df, y_true):
@@ -128,33 +171,69 @@ def display_mean_data(df, y_true):
 
     fpr, tpr, _ = roc_curve(y_true, median_diff)
     label = "Mean AUC: " + str(1 - value)
-    seaborn.lineplot(tpr, fpr, label=label)
+    # seaborn.lineplot(tpr, fpr, label=label)
+
+    print("Mean AUC: " + str(1 - value))
+
+    return 1 - value
 
 
 if __name__ == "__main__":
-    data_male, data_female = cd.create_data_new("../research/ukbb_new_tests.csv")
 
-    print("All Female Data: ", data_female.shape)
-    print("All Male Data: ", data_male.shape)
+    for illness in ["asthma", "parkinsonism", "alzheimer", "K760", "D50*", "D70*"]:
 
-    confustion_matrixes(data_female, vs.features_values_female, "asthma")
+        print("Current Illness:", illness)
+        data_male, data_female = cd.create_data_new("../research/ukbb_new_tests.csv")
 
-    # Remove problematic values and NaN values
-    data_female_new = cd.remove_columns_and_nan(
-        data_female, vs.features_values_female, "asthma"
-    )
+        print("All Female Data: ", data_female.shape)
+        print("All Male Data: ", data_male.shape)
+        print("Ill Female:", data_female[data_female[illness] == 1].shape)
 
-    # Normalize the Data
-    scaler = StandardScaler()
-    normalized_data = scaler.fit_transform(data_female_new)
+        all_aucs, best_auc = confustion_matrixes(
+            data_female, vs.features_values_female, illness
+        )
 
-    display_mean_data(normalized_data, data_female_new["asthma"])
+        # Remove problematic values and NaN values
+        data_female_new = cd.remove_columns_and_nan(
+            data_female, vs.features_values_female, illness
+        )
 
+        # Normalize the Data
+        scaler = StandardScaler()
+        normalized_data = scaler.fit_transform(data_female_new)
+
+        mean_auc = display_mean_data(normalized_data, data_female_new[illness])
+
+        best_row = best_auc.iloc[0]
+
+        print("TP: ", best_row["TP"])
+        print("TN: ", best_row["TN"])
+        print("FP: ", best_row["FP"])
+        print("FN: ", best_row["FN"])
+
+        final_df = final_df.append(
+            {
+                "Illness Name": illness,
+                "Total Number of Patients": data_female.shape[0],
+                "Number of Ill Females": data_female[data_female[illness] == 1].shape[
+                    0
+                ],
+                "Best Test Name": best_row["Key"],
+                "AUC Score": best_row["AUC-Score"],
+                "Precision Score": best_row["Precision Score"],
+                "Recall Score": best_row["Recall Score"],
+                "PR AUC": best_row["PR AUC"],
+                "Total Mean AUC": mean_auc,
+            },
+            ignore_index=True,
+        )
+
+    final_df.to_csv("results.csv")
     plt.legend()
     plt.show()
 
 
-""" if __name__ == "__main__": 
+"""if __name__ == "__main__":
     data_male, data_female = cd.create_data_new("../research/ukbb_new_tests.csv")
     # data = cd.create_data()
 
@@ -166,7 +245,7 @@ if __name__ == "__main__":
     print("All Male Data: ", data_male.shape)
 
     confustion_data = confustion_matrixes(
-        data_female, vs.features_values_female, "D50*"
+        data_female, vs.features_values_female, "alzheimer"
     )
 
     # Sort rows according to the AUC score
@@ -189,11 +268,11 @@ if __name__ == "__main__":
     # Select all ill patients and all control patients, compute diff
     # and compute distance from overall mean
     ill_female = data_female_new[
-        (data_female_new["D50*"] == 0) & (data_female_new["sex"] == 2)
+        (data_female_new["alzheimer"] == 0) & (data_female_new["sex"] == 2)
     ]
     # ill_male = data[(data["D70*"] == 2) & (data["sex"] == 1)]
     control_female = data_female_new[
-        (data_female_new["D50*"] == 1) & (data_female_new["sex"] == 2)
+        (data_female_new["alzheimer"] == 1) & (data_female_new["sex"] == 2)
     ]
     # control_male = data[(data["D70*"] == 1) & (data["sex"] == 1)]
 
@@ -230,18 +309,18 @@ if __name__ == "__main__":
 
     # invalid_range_diff = invalid_range_diff[0]
 
-    # seaborn.distplot(
-    #     control_diff_female,
-    #     label="control-female",
-    #     # hist_kws={"cumulative": True},
-    #     kde_kws={"cumulative": True},
-    # )
-    # seaborn.distplot(
-    #     ill_diff_female,
-    #     label="ill-female",
-    #     # hist_kws={"cumulative": True},
-    #     kde_kws={"cumulative": True},
-    # )
+    seaborn.distplot(
+        control_diff_female,
+        label="control-female",
+        # hist_kws={"cumulative": True},
+        kde_kws={"cumulative": True},
+    )
+    seaborn.distplot(
+        ill_diff_female,
+        label="ill-female",
+        # hist_kws={"cumulative": True},
+        kde_kws={"cumulative": True},
+    )
     # seaborn.distplot(
     #     control_diff_male,
     #     label="control-male",
@@ -264,3 +343,4 @@ if __name__ == "__main__":
     plt.legend()
     plt.show()
 """
+
