@@ -227,16 +227,16 @@ def create_data_new(path):
     df_uk_added_data_2 = df_uk_added_data_2.rename(columns={"eid": "FID"})
 
     # Create a DataSet for UK data that has values from both files
-    df_uk = df_uk.merge(df_uk_added_data, on="FID")
-    df_uk = df_uk.merge(df_uk_added_data_2, on="FID")
+    df_uk = df_uk.merge(df_uk_added_data, on="FID", how="left")
+    df_uk = df_uk.merge(df_uk_added_data_2, on="FID", how="left")
 
     df_uk["sex"].replace("Male", 1, inplace=True)
     df_uk["sex"].replace("Female", 2, inplace=True)
 
-    df_uk["K760"].replace(2, 0, inplace=True)
+    df_uk["K760"] = df_uk["K760"] - 1
 
     # Create new columns for similar diseases
-    df_uk["D50*"] = df_uk["D500"]
+    df_uk["D50*"] = 0
 
     df_uk.loc[
         (df_uk["D500"] == 2)
@@ -253,7 +253,7 @@ def create_data_new(path):
         | (df_uk["D643"] == 2)
         | (df_uk["D644"] == 2),
         "D50*",
-    ] = 0
+    ] = 1
 
     # Part of the D50* - Anemia
     # df_uk["D63*"] = df_uk["D630"]
@@ -274,7 +274,7 @@ def create_data_new(path):
     #     "D64*",
     # ] = 2
 
-    df_uk["D70*"] = df_uk["D70"]
+    df_uk["D70*"] = 0
 
     df_uk.loc[
         (df_uk["D70"] == 2)
@@ -286,15 +286,15 @@ def create_data_new(path):
         | (df_uk["D708"] == 2)
         | (df_uk["D709"] == 2),
         "D70*",
-    ] = 0
+    ] = 1
 
-    df_uk["alzheimer"] = 1
-    df_uk.loc[(df_uk["Source of alzheimer's disease report"].notna(), "alzheimer")] = 0
+    df_uk["alzheimer"] = 0
+    df_uk.loc[(df_uk["Source of alzheimer's disease report"].notna(), "alzheimer")] = 1
 
-    df_uk["parkinsonism"] = 1
+    df_uk["parkinsonism"] = 0
     df_uk.loc[
         (df_uk["Source of all cause parkinsonism report"].notna(), "parkinsonism")
-    ] = 0
+    ] = 1
 
     df_uk["asthma"] = 0
     df_uk.loc[(df_uk["Source of asthma report"].notna(), "asthma")] = 1

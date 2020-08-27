@@ -24,9 +24,6 @@ final_df = pd.DataFrame(
         "Illness Name",
         "Number of Ill Females",
         "Best Test Name",
-        "AUC Score",
-        "Precision Score",
-        "Recall Score",
         "PR AUC",
         "Total Mean AUC",
     ]
@@ -89,7 +86,7 @@ def confustion_matrixes(data, features_list, tested_illness):
         false_negative = false_negative[0]
 
         # precision_score = true_positive / (true_positive + false_positive)
-        # recall_score = true_positive / (true_positive + false_negative)
+        recall_score = true_positive / (true_positive + false_negative)
 
         # Remove NaN Values
         new_data = data[data[key].notna()]
@@ -104,15 +101,15 @@ def confustion_matrixes(data, features_list, tested_illness):
         # print(median_diff)
 
         value = roc_auc_score(new_data[tested_illness], median_diff)
-        precision_s = precision_score(new_data[tested_illness], median_diff)
-        recall_s = recall_score(new_data[tested_illness], median_diff)
+        # precision = precision_score(new_data[tested_illness], median_diff)
+        # recall = recall_score(new_data[tested_illness], median_diff)
 
         precision, recall, _ = precision_recall_curve(
             new_data[tested_illness], median_diff
         )
 
         auc_score = auc(recall, precision)
-        print("PR AUC: ", auc_score)
+        # print("PR AUC: ", auc_score)
 
         # print("Precision: ", 1 - precision)
         # print("Recall: ", 1 - recall)
@@ -126,9 +123,9 @@ def confustion_matrixes(data, features_list, tested_illness):
                 "FN": false_negative,
                 "TPR": (true_positive / (true_positive + false_negative)),
                 "FPR": (false_positive / (true_negative + false_positive)),
-                "AUC-Score": 1 - value,
-                "Precision Score": precision_s,
-                "Recall Score": recall_s,
+                "AUC-Score": value,
+                "Precision Score": precision_score,
+                "Recall Score": recall_score,
                 "PR AUC": auc_score,
                 "median-diff": median_diff,
                 "data": new_data[tested_illness],
@@ -136,14 +133,10 @@ def confustion_matrixes(data, features_list, tested_illness):
             ignore_index=True,
         )
 
-    seaborn.lineplot(recall, precision, label=illness)
+    # seaborn.lineplot(recall, precision, label=illness)
 
     new_df = df.sort_values(by="AUC-Score", ascending=False)
     best_auc = new_df.head()
-
-    # for index, row in best_auc.iterrows():
-    #     fpr, tpr, _ = roc_curve(row["data"], row["median-diff"])
-    #     seaborn.lineplot(tpr, fpr, label=row["Key"] + " AUC: " + str(row["AUC-Score"]))
 
     df = df.drop(columns=["median-diff", "data"])
     df.to_csv("confusion_matrix_" + tested_illness + ".csv")
@@ -151,36 +144,46 @@ def confustion_matrixes(data, features_list, tested_illness):
     return df, best_auc
 
 
-def display_mean_data(df, y_true):
+def display_mean_data(df, y_true, illness, axs):
     # Standerdize Data
     mean = df.mean(axis=0)
     mean = mean.reshape(1, -1)
 
     df_diff = sp.spatial.distance.cdist(mean, df)
+    median_diff = df_diff.reshape(-1, 1)
 
     # Normalize diff - the values need to be between 0 and 1
-    mean_key = df_diff.mean()
-    std_key = df_diff.std()
+    # mean_key = df_diff.mean()
+    # std_key = df_diff.std()
 
-    new_values = (df_diff - mean_key) / std_key
+    # new_values = (df_diff - mean_key) / std_key
 
-    median_diff = abs(new_values)
-    median_diff = median_diff.reshape(-1, 1)
+    # median_diff = abs(new_values)
+    # median_diff = median_diff.reshape(-1, 1)
 
     value = roc_auc_score(y_true, median_diff)
 
     fpr, tpr, _ = roc_curve(y_true, median_diff)
-    label = "Mean AUC: " + str(1 - value)
-    # seaborn.lineplot(tpr, fpr, label=label)
+    label = "Mean AUC of " + illness + ": " + str(value)
+    seaborn.lineplot(fpr, tpr, label=label, ax=axs)
 
-    print("Mean AUC: " + str(1 - value))
+    print("Mean AUC: " + str(value))
 
-    return 1 - value
+    return value
 
 
 if __name__ == "__main__":
 
-    for illness in ["asthma", "parkinsonism", "alzheimer", "K760", "D50*", "D70*"]:
+    fig, axs = plt.subplots(3, 2)
+
+    for illness, col_index, row_index in [
+        ["parkinsonism", 0, 0],
+        ["alzheimer", 0, 1],
+        ["asthma", 0, 2],
+        ["K760", 1, 0],
+        ["D50*", 1, 1],
+        ["D70*", 1, 2],
+    ]:
 
         print("Current Illness:", illness)
         data_male, data_female = cd.create_data_new("../research/ukbb_new_tests.csv")
@@ -193,16 +196,33 @@ if __name__ == "__main__":
             data_female, vs.features_values_female, illness
         )
 
+        # Display Data on Plot
+        for index, row in best_auc.iterrows():
+            fpr, tpr, _ = roc_curve(row["data"], row["median-diff"])
+            seaborn.lineplot(
+                fpr,
+                tpr,
+                label=row["Key"] + " AUC: " + str(row["AUC-Score"]),
+                ax=axs[row_index, col_index],
+            )
+
         # Remove problematic values and NaN values
         data_female_new = cd.remove_columns_and_nan(
             data_female, vs.features_values_female, illness
         )
 
+        data_female_n = data_female_new.drop(columns=[illness])
+
         # Normalize the Data
         scaler = StandardScaler()
-        normalized_data = scaler.fit_transform(data_female_new)
+        normalized_data = scaler.fit_transform(data_female_n)
 
-        mean_auc = display_mean_data(normalized_data, data_female_new[illness])
+        mean_auc = display_mean_data(
+            normalized_data,
+            data_female_new[illness],
+            illness,
+            axs[row_index, col_index],
+        )
 
         best_row = best_auc.iloc[0]
 
@@ -219,16 +239,23 @@ if __name__ == "__main__":
                     0
                 ],
                 "Best Test Name": best_row["Key"],
-                "AUC Score": best_row["AUC-Score"],
-                "Precision Score": best_row["Precision Score"],
-                "Recall Score": best_row["Recall Score"],
+                "ROC AUC": best_row["AUC-Score"],
                 "PR AUC": best_row["PR AUC"],
                 "Total Mean AUC": mean_auc,
             },
             ignore_index=True,
         )
 
+        axs[row_index, col_index].set_title(illness)
+
     final_df.to_csv("results.csv")
+    for ax in axs.flat:
+        ax.set(xlabel="False Positive Rate", ylabel="True Positive Rate")
+
+    # Hide x labels and tick labels for top plots and y ticks for right plots.
+    for ax in axs.flat:
+        ax.label_outer()
+
     plt.legend()
     plt.show()
 
