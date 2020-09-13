@@ -18,6 +18,8 @@ from sklearn.metrics import (
     precision_recall_curve,
 )
 
+from sklearn_pandas import DataFrameMapper
+
 final_df = pd.DataFrame(
     columns=[
         "Total Number of Patients",
@@ -88,8 +90,11 @@ def confustion_matrixes(data, features_list, tested_illness):
         # precision_score = true_positive / (true_positive + false_positive)
         recall_score = true_positive / (true_positive + false_negative)
 
-        # Remove NaN Values
-        new_data = data[data[key].notna()]
+        # Remove NaN Values and drop irrelevent columns
+        keys_list = list(features_list.keys())
+        keys_list.append(tested_illness)
+        new_data = data[keys_list]
+        new_data = new_data[new_data[key].notna()]
 
         # Standerdize Data
         mean_key = new_data[key].mean()
@@ -138,7 +143,7 @@ def confustion_matrixes(data, features_list, tested_illness):
     new_df = df.sort_values(by="AUC-Score", ascending=False)
     best_auc = new_df.head()
 
-    df = df.drop(columns=["median-diff", "data"])
+    df = new_df.drop(columns=["median-diff", "data"])
     df.to_csv("confusion_matrix_" + tested_illness + ".csv")
 
     return df, best_auc
@@ -146,20 +151,14 @@ def confustion_matrixes(data, features_list, tested_illness):
 
 def display_mean_data(df, y_true, illness, axs):
     # Standerdize Data
-    mean = df.mean(axis=0)
-    mean = mean.reshape(1, -1)
+    # pd_mean = df.mean(axis=1, skipna=True)
+    pd_mean = df.mean(axis=0)
+    pd_mean = pd_mean.reshape(1, -1)
 
-    df_diff = sp.spatial.distance.cdist(mean, df)
+    df_diff = sp.spatial.distance.cdist(pd_mean, df)
     median_diff = df_diff.reshape(-1, 1)
 
-    # Normalize diff - the values need to be between 0 and 1
-    # mean_key = df_diff.mean()
-    # std_key = df_diff.std()
-
-    # new_values = (df_diff - mean_key) / std_key
-
-    # median_diff = abs(new_values)
-    # median_diff = median_diff.reshape(-1, 1)
+    median_diff = abs(median_diff)
 
     value = roc_auc_score(y_true, median_diff)
 
@@ -172,9 +171,139 @@ def display_mean_data(df, y_true, illness, axs):
     return value
 
 
+def specific_best_auc(df, y_true, order, illness):
+
+    best_mean_auc = pd.DataFrame()
+
+    for index in range(len(order)):
+        columns = order[: (index + 1)]
+        current_array = df[columns].to_numpy()
+
+        mean = current_array.mean(axis=0)
+        mean = mean.reshape(1, -1)
+
+        df_diff = sp.spatial.distance.cdist(mean, current_array)
+        median_diff = df_diff.reshape(-1, 1)
+
+        median_diff = abs(median_diff)
+
+        value = roc_auc_score(y_true, median_diff)
+
+        best_mean_auc = best_mean_auc.append(
+            {"Total Mean AUC": value, "Tests Included": ", ".join(columns.values)},
+            ignore_index=True,
+        )
+
+        print(value)
+        best_mean_auc.to_csv(illness + "mean_auc.csv")
+
+
+def mean_of_patients(data):
+    """
+    With no regard to the illnesses of the patient, calculate the mean of each of the patients
+    from the total mean.
+    Once calculated - split into deciles and preform a t-test between deciles.
+    """
+
+    # Remove Illness columns
+    scaled_features_df = data.drop(
+        columns=[
+            "parkinsonism",
+            "alzheimer",
+            "asthma",
+            "K760",
+            "D50*",
+            "D70*",
+            "# of Illnesses",
+            "FID",
+            "IID",
+            "sex",
+            "visit_age",
+        ]
+    )
+
+    # Remove NaN values
+    scaled_features_df = cd.remove_columns_and_nan(scaled_features_df)
+
+    # Normalize the Data
+    scaler = StandardScaler()
+    normalized_data = scaler.fit_transform(scaled_features_df)
+
+    df = pd.DataFrame(
+        normalized_data,
+        index=scaled_features_df.index,
+        columns=scaled_features_df.columns,
+    )
+
+    # Calculate the total Mean and the Specific Mean of each row
+    pd_mean = numpy.nanmean(a=normalized_data, axis=0)
+    pd_mean = pd_mean.reshape(1, -1)
+
+    scaled_features_df["diff"] = df.apply(
+        lambda row: sp.spatial.distance.cdist(pd_mean, [row])[0][0], axis=1
+    )
+
+    scaled_features_df.to_csv("data_test.csv")
+
+    # Remove the NaN values from dataFrame
+    scaled_features_df = (
+        scaled_features_df.dropna()
+    )  # Here we are left with about 105538 patients that meet the criterias
+
+    # Split to Decile
+    quantile = scaled_features_df.quantile(
+        [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], axis=0
+    )["diff"]
+
+    conditions = [
+        (scaled_features_df["diff"] >= quantile[0.9]),
+        (scaled_features_df["diff"] >= quantile[0.8])
+        & (scaled_features_df["diff"] < quantile[0.9]),
+        (scaled_features_df["diff"] >= quantile[0.7])
+        & (scaled_features_df["diff"] < quantile[0.8]),
+        (scaled_features_df["diff"] >= quantile[0.6])
+        & (scaled_features_df["diff"] < quantile[0.7]),
+        (scaled_features_df["diff"] >= quantile[0.5])
+        & (scaled_features_df["diff"] < quantile[0.6]),
+        (scaled_features_df["diff"] >= quantile[0.4])
+        & (scaled_features_df["diff"] < quantile[0.5]),
+        (scaled_features_df["diff"] >= quantile[0.3])
+        & (scaled_features_df["diff"] < quantile[0.4]),
+        (scaled_features_df["diff"] >= quantile[0.2])
+        & (scaled_features_df["diff"] < quantile[0.3]),
+        (scaled_features_df["diff"] >= quantile[0.1])
+        & (scaled_features_df["diff"] < quantile[0.2]),
+    ]
+    values = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
+
+    scaled_features_df["quantile"] = numpy.select(conditions, values)
+    scaled_features_df.sort_values(by=["quantile"])
+
+    # Preform T-Test
+    ttest_results = sp.stats.ttest_ind(
+        scaled_features_df[scaled_features_df["quantile"] == 0.1]["diff"],
+        scaled_features_df[scaled_features_df["quantile"] == 0.2]["diff"],
+    )
+
+    print(ttest_results)
+
+
 if __name__ == "__main__":
 
-    fig, axs = plt.subplots(3, 2)
+    fig, axs = plt.subplots(3, 2, sharex=True, sharey=True)
+
+    data_male, data_female = cd.create_data_new("../research/ukbb_new_tests.csv")
+
+    data_female = cd.calc_num_of_illnesses(data_female)
+
+    mean_of_patients(data_female)
+
+    # Remove problematic values and NaN values
+    data_female_new = cd.remove_columns_and_nan(
+        data_female,
+        vs.features_values_female,
+        ["parkinsonism", "alzheimer", "asthma", "K760", "D50*", "D70*"],
+    )
 
     for illness, col_index, row_index in [
         ["parkinsonism", 0, 0],
@@ -186,14 +315,14 @@ if __name__ == "__main__":
     ]:
 
         print("Current Illness:", illness)
-        data_male, data_female = cd.create_data_new("../research/ukbb_new_tests.csv")
+        # data_male, data_female = cd.create_data_new("../research/ukbb_new_tests.csv")
 
         print("All Female Data: ", data_female.shape)
         print("All Male Data: ", data_male.shape)
         print("Ill Female:", data_female[data_female[illness] == 1].shape)
 
         all_aucs, best_auc = confustion_matrixes(
-            data_female, vs.features_values_female, illness
+            data_female, vs.features_values_female_partly, illness
         )
 
         # Display Data on Plot
@@ -208,20 +337,32 @@ if __name__ == "__main__":
 
         # Remove problematic values and NaN values
         data_female_new = cd.remove_columns_and_nan(
-            data_female, vs.features_values_female, illness
+            data_female, vs.features_values_female_partly, illness
         )
 
         data_female_n = data_female_new.drop(columns=[illness])
+        # data_female_n = data_female[vs.features_values_female_partly]
 
         # Normalize the Data
         scaler = StandardScaler()
         normalized_data = scaler.fit_transform(data_female_n)
+
+        scaled_features_df = pd.DataFrame(
+            normalized_data, index=data_female_n.index, columns=data_female_n.columns
+        )
+
+        # normalized_data = data_female_n.to_numpy()
+        # Add the number of illnesses the
 
         mean_auc = display_mean_data(
             normalized_data,
             data_female_new[illness],
             illness,
             axs[row_index, col_index],
+        )
+
+        specific_best_auc(
+            scaled_features_df, data_female_new[illness], all_aucs["Key"], illness
         )
 
         best_row = best_auc.iloc[0]
@@ -247,6 +388,7 @@ if __name__ == "__main__":
         )
 
         axs[row_index, col_index].set_title(illness)
+        axs[row_index, col_index].legend(loc="best", prop={"size": 6})
 
     final_df.to_csv("results.csv")
     for ax in axs.flat:
@@ -256,7 +398,7 @@ if __name__ == "__main__":
     for ax in axs.flat:
         ax.label_outer()
 
-    plt.legend()
+    # plt.legend(loc="best", prop={"size": 6})
     plt.show()
 
 

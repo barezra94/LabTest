@@ -255,25 +255,6 @@ def create_data_new(path):
         "D50*",
     ] = 1
 
-    # Part of the D50* - Anemia
-    # df_uk["D63*"] = df_uk["D630"]
-
-    # df_uk.loc[
-    #     (df_uk["D630"] == 2) | (df_uk["D631"] == 2) | (df_uk["D638"] == 2), "D63*",
-    # ] = 2
-
-    # df_uk["D64*"] = df_uk["D640"]
-
-    # df_uk.loc[
-    #     (df_uk["D640"] == 2)
-    #     | (df_uk["D641"] == 2)
-    #     | (df_uk["D648"] == 2)
-    #     | (df_uk["D642"] == 2)
-    #     | (df_uk["D643"] == 2)
-    #     | (df_uk["D644"] == 2),
-    #     "D64*",
-    # ] = 2
-
     df_uk["D70*"] = 0
 
     df_uk.loc[
@@ -339,13 +320,36 @@ def remove_columns_and_nan(data, features_list=False, illness=False):
     # Drop the Oestradiol (pmol/L) and Rheumatoid factor (IU/ml)
     # because the have too many NaN values
 
+    # for x in features_list:
+    #     print(x + " :", data[x].isnull().sum())
+
     if features_list == False:
         data = data.drop(columns=["Oestradiol (pmol/L)", "Rheumatoid factor (IU/ml)"])
-    else:
+    elif type(illness) is not list:
         keys_list = list(features_list.keys())
         keys_list.append(illness)
         data = data[keys_list]
+    else:
+        keys_list = list(features_list.keys())
+        keys_list.extend(illness)
+        data = data[keys_list]
 
     data = data.dropna()
+
+    return data
+
+
+def calc_num_of_illnesses(data):
+    df = pd.read_csv("../research/new_illnesses.csv")
+
+    cols_to_sum = df.columns[1:214]
+    df["# of Illnesses"] = df[cols_to_sum].notna().sum(axis=1)
+
+    # Drop all Columns except for eid and # of Illnesses
+    df = df.filter(["eid", "# of Illnesses"], axis=1)
+    df = df.rename(columns={"eid": "FID"})
+
+    # Merge data
+    data = data.merge(df, on="FID", how="left")
 
     return data
