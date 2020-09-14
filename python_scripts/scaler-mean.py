@@ -245,7 +245,9 @@ def mean_of_patients(data):
 
     scaled_features_df.to_csv("data_test.csv")
 
-    # Remove the NaN values from dataFrame
+    scaled_features_df["# of Illnesses"] = data["# of Illnesses"]
+
+    # Remove the NaN values from dataFrame`
     scaled_features_df = (
         scaled_features_df.dropna()
     )  # Here we are left with about 105538 patients that meet the criterias
@@ -281,8 +283,8 @@ def mean_of_patients(data):
 
     # Preform T-Test
     ttest_results = sp.stats.ttest_ind(
-        scaled_features_df[scaled_features_df["quantile"] == 0.1]["diff"],
-        scaled_features_df[scaled_features_df["quantile"] == 0.2]["diff"],
+        scaled_features_df[scaled_features_df["quantile"] == 0.1]["# of Illnesses"],
+        scaled_features_df[scaled_features_df["quantile"] == 0.2]["# of Illnesses"],
     )
 
     print(ttest_results)
