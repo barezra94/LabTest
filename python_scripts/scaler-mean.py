@@ -8,6 +8,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import values as vs
 
+import itertools
+
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (
     roc_auc_score,
@@ -282,12 +284,25 @@ def mean_of_patients(data):
     scaled_features_df.sort_values(by=["quantile"])
 
     # Preform T-Test
-    ttest_results = sp.stats.ttest_ind(
-        scaled_features_df[scaled_features_df["quantile"] == 0.1]["# of Illnesses"],
-        scaled_features_df[scaled_features_df["quantile"] == 0.2]["# of Illnesses"],
-    )
+    quantile_data = pd.DataFrame()
 
-    print(ttest_results)
+    for x, y in itertools.combinations(values, 2):
+        ttest_results1 = sp.stats.ttest_ind(
+            scaled_features_df[scaled_features_df["quantile"] == x]["# of Illnesses"],
+            scaled_features_df[scaled_features_df["quantile"] == y]["# of Illnesses"],
+        )
+
+        quantile_data = quantile_data.append(
+            {
+                "X": x,
+                "Y": y,
+                "p-value": ttest_results1.pvalue,
+                "t-statistic": ttest_results1.statistic,
+            },
+            ignore_index=True,
+        )
+
+    quantile_data.to_csv("ttest_results.csv")
 
 
 if __name__ == "__main__":
