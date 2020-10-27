@@ -2,14 +2,29 @@ import pandas as pd
 import numpy as np
 import create_data as cd
 import values as vs
+import matplotlib.pyplot as plt
+import seaborn
+import pickle
 
 from sklearn import metrics
 from sklearn import svm
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.model_selection import train_test_split, GridSearchCV, validation_curve
 
 import matplotlib.pyplot as plt
+from sklearn.metrics import (
+    roc_auc_score,
+    roc_curve,
+    auc,
+    precision_score,
+    recall_score,
+    precision_recall_curve,
+    plot_roc_curve,
+    confusion_matrix,
+    plot_confusion_matrix,
+)
+
 from matplotlib.colors import ListedColormap
 from sklearn.datasets import make_moons, make_circles, make_classification
 from sklearn.neural_network import MLPClassifier
@@ -46,6 +61,8 @@ def prep_data(data, test_size=0.3, random_state=13):
             "D50*",
             "D70*",
             "# of Illnesses",
+            "visit_age",
+            "sex",
         ],
     )
 
@@ -81,98 +98,59 @@ def prep_data(data, test_size=0.3, random_state=13):
     return X_train, X_test, y_train, y_test, x.columns
 
 
-def test_all_classifiers(X_train, X_test, y_train, y_test):
-    h = 0.02  # step size in the mesh
-
-    names = [
-        "Nearest Neighbors",
-        "Linear SVM",
-        "RBF SVM",
-        "Gaussian Process",
-        "Decision Tree",
-        "Random Forest",
-        "Neural Net",
-        "AdaBoost",
-        "Naive Bayes",
-        "QDA",
-    ]
-
-    classifiers = [
-        KNeighborsClassifier(3),
-        SVC(kernel="linear", C=0.025),
-        SVC(gamma=2, C=1),
-        GaussianProcessClassifier(1.0 * RBF(1.0)),
-        DecisionTreeClassifier(max_depth=5),
-        RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
-        MLPClassifier(alpha=1, max_iter=1000),
-        AdaBoostClassifier(),
-        GaussianNB(),
-        QuadraticDiscriminantAnalysis(),
-    ]
-
-    figure = plt.figure(figsize=(27, 9))
-    i = 1
-    # iterate over classifiers
-    for name, clf in zip(names, classifiers):
-        print("Current Classifier: ", name)
-        ax = plt.subplot(1, len(classifiers) + 1, i)
-        clf.fit(X_train, y_train)
-        score = clf.score(X_test, y_test)
-        print("Score: ", score)
-
-        # # Plot the decision boundary. For that, we will assign a color to each
-        # # point in the mesh [x_min, x_max]x[y_min, y_max].
-        # if hasattr(clf, "decision_function"):
-        #     Z = clf.decision_function(np.c_[xx.ravel(), yy.ravel()])
-        # else:
-        #     Z = clf.predict_proba(np.c_[xx.ravel(), yy.ravel()])[:, 1]
-
-        # # Put the result into a color plot
-        # Z = Z.reshape(xx.shape)
-        # ax.contourf(xx, yy, Z, cmap=cm, alpha=0.8)
-
-        # Plot the training points
-        ax.scatter(X_train[:, 0], X_train[:, 1], c=y_train, edgecolors="k")
-        # Plot the testing points
-        ax.scatter(
-            X_test[:, 0], X_test[:, 1], c=y_test, edgecolors="k", alpha=0.6,
-        )
-
-        # ax.set_xlim(xx.min(), xx.max())
-        # ax.set_ylim(yy.min(), yy.max())
-        ax.set_xticks(())
-        ax.set_yticks(())
-        ax.set_title(name)
-        i += 1
-
-    plt.tight_layout()
-    plt.show()
-
-
 def RandomForestAlgo(X_train, X_test, y_train, y_test):
     # Run Random Forest Classifier
-    clf = RandomForestClassifier(random_state=1)
+    # clf = RandomForestClassifier(
+    #     random_state=1,
+    #     max_depth=25,
+    #     min_samples_leaf=2,
+    #     min_samples_split=2,
+    #     n_estimators=500,
+    # )
     # clf.fit(X_train, y_train)
+
+    # Save the model with pickle
+    filename = "random_forest_binary_classification.sav"
+    # pickle.dump(clf, open(filename, "wb"))
+
+    # Load Model
+    loaded_model = pickle.load(open(filename, "rb"))
+    y_pred = loaded_model.predict(X_test)
+    # print(result)
+
     # y_pred = clf.predict(X_test)
 
-    n_estimators = [100, 300, 500, 800, 1200]
-    max_depth = [5, 8, 15, 25, 30]
-    min_samples_split = [2, 5, 10, 15, 100]
-    min_samples_leaf = [1, 2, 5, 10]
+    # n_estimators = [100, 300, 500, 800, 1200]
+    # max_depth = [5, 8, 15, 25, 30]
+    # min_samples_split = [2, 5, 10, 15, 100]
+    # min_samples_leaf = [1, 2, 5, 10]
 
-    hyperF = dict(
-        n_estimators=n_estimators,
-        max_depth=max_depth,
-        min_samples_split=min_samples_split,
-        min_samples_leaf=min_samples_leaf,
-    )
+    # hyperF = dict(
+    #     n_estimators=n_estimators,
+    #     max_depth=max_depth,
+    #     min_samples_split=min_samples_split,
+    #     min_samples_leaf=min_samples_leaf,
+    # )
 
-    gridF = GridSearchCV(clf, hyperF, cv=3, verbose=1, n_jobs=-1)
-    bestF = gridF.fit(X_train, y_train)
+    # gridF = GridSearchCV(clf, hyperF, cv=3, verbose=1, n_jobs=-1)
+    # bestF = gridF.fit(X_train, y_train)
 
     # print("Random Forest Accuracy:", metrics.accuracy_score(y_test, y_pred))
+    # print("Confustion Matrix:", confusion_matrix(y_test, y_pred))
 
-    print("Best F:", bestF)
+    ax = plt.gca()
+    # rfc_disp = plot_roc_curve(loaded_model, X_test, y_test, ax=ax)
+    plot_confusion_matrix(loaded_model, X_test, y_test, ax=ax)
+
+    # value = roc_auc_score(y_test, y_pred)
+
+    # fpr, tpr, _ = roc_curve(y_test, y_pred)
+    # label = "ROC AUC: " + str(value)
+    # seaborn.lineplot(fpr, tpr, label=label)
+    plt.title("ROC Curve Random Forest Binary Classifier")
+    plt.show()
+
+    # print("Best F:", bestF)
 
 
 def SVMAlgorithm(X_train, X_test, y_train, y_test):
@@ -186,11 +164,13 @@ def SVMAlgorithm(X_train, X_test, y_train, y_test):
 
 if __name__ == "__main__":
     # Create the Data
-    data_male, data_female = cd.create_data_new("../research/ukbb_new_tests.csv")
-    data_female = cd.calc_num_of_illnesses(data_female)
+    data_male, data_female, all_data = cd.create_data_new(
+        "../research/ukbb_new_tests.csv"
+    )
+    all_data = cd.calc_num_of_illnesses(all_data)
 
     # Split data into train and test and Normalize the data
-    X_train, X_test, y_train, y_test, features = prep_data(data_female)
+    X_train, X_test, y_train, y_test, features = prep_data(all_data)
 
     # Run Random Forest Classifier
     RandomForestAlgo(X_train, X_test, y_train, y_test)
@@ -202,6 +182,7 @@ if __name__ == "__main__":
     After running both classifiers these were the results:
      - Random Forest Accuracy: 0.5081071205639206
      - Defualt SVM Accuracy: 0.518170607310872
+
     """
 
     # Try Running all classifiers to check which is the best

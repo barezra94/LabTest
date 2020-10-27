@@ -312,7 +312,7 @@ def create_data_new(path):
     )
     print("After Dropping Phenotype Columns: ", df_uk.shape)
 
-    return df_uk[df_uk["sex"] == 1], df_uk[df_uk["sex"] == 2]
+    return df_uk[df_uk["sex"] == 1], df_uk[df_uk["sex"] == 2], df_uk
 
 
 def remove_columns_and_nan(data, features_list=False, illness=False):
@@ -340,7 +340,7 @@ def remove_columns_and_nan(data, features_list=False, illness=False):
 
 
 def calc_num_of_illnesses(data):
-    df = pd.read_csv("../research/new_illnesses.csv")
+    df = pd.read_csv("../research/new_data.csv")
 
     cols_to_sum = df.columns[1:214]
     df["# of Illnesses"] = df[cols_to_sum].notna().sum(axis=1)

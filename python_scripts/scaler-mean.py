@@ -309,7 +309,7 @@ if __name__ == "__main__":
 
     fig, axs = plt.subplots(3, 2, sharex=True, sharey=True)
 
-    data_male, data_female = cd.create_data_new("../research/ukbb_new_tests.csv")
+    data_male, data_female, _ = cd.create_data_new("../research/ukbb_new_tests.csv")
 
     data_female = cd.calc_num_of_illnesses(data_female)
 
