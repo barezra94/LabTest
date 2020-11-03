@@ -3,7 +3,7 @@ import numpy as np
 import create_data as cd
 import values as vs
 import matplotlib.pyplot as plt
-import seaborn
+import seaborn as sns
 import pickle
 
 from sklearn import metrics
@@ -38,16 +38,6 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 
 
-# def random_forest(X_train, X_test, y_train, y_test):
-#     regressor = RandomForestRegressor(n_estimators=100, random_state=0)
-#     regressor.fit(X_train, y_train)
-#     y_pred = regressor.predict(X_test)
-
-#     print("Mean Absolute Error:", metrics.mean_absolute_error(y_test, y_pred))
-#     print("Mean Squared Error:", metrics.mean_squared_error(y_test, y_pred))
-#     print(
-#         "Root Mean Squared Error:", np.sqrt(metrics.mean_squared_error(y_test, y_pred))
-#     )
 def prep_data(data, test_size=0.3, random_state=13):
     # Remove NaN values
     data = cd.remove_columns_and_nan(
@@ -60,9 +50,10 @@ def prep_data(data, test_size=0.3, random_state=13):
             "K760",
             "D50*",
             "D70*",
-            "# of Illnesses",
+            # "# of Illnesses",
             "visit_age",
             "sex",
+            "years_to_death",
         ],
     )
 
@@ -75,15 +66,23 @@ def prep_data(data, test_size=0.3, random_state=13):
             "K760",
             "D50*",
             "D70*",
-            "# of Illnesses",
+            # "# of Illnesses",
+            "years_to_death",
         ]
     )
 
-    y = np.where((data["# of Illnesses"] > 0), 1, data["# of Illnesses"])
+    y = np.where((data["years_to_death"] < 0), 0, 1)
 
-    print("Total Number: ", data.shape)
-    print("Number of Non-Ill: ", data[data["# of Illnesses"] == 0].shape)
-    print("Number of Ill: ", data[data["# of Illnesses"] > 0].shape)
+    # outcome that we are trying to predict - if the person died or not - binary
+    # time to death - regression
+
+    # ההפרש בין גיל הביקור למוות (זמן עד מוות) - לראות התפלגות של המידע הזה
+    # Add Class weight to the classifier
+    # Run Grid Search for each of the label types
+
+    # print("Total Number: ", data.shape)
+    # print("Number of Non-Ill: ", data[data["# of Illnesses"] <= 0].shape)
+    # print("Number of Ill: ", data[data["# of Illnesses"] > 0].shape)
 
     # Split to Train and Test
     X_train, X_test, y_train, y_test = train_test_split(
@@ -99,44 +98,52 @@ def prep_data(data, test_size=0.3, random_state=13):
 
 
 def RandomForestAlgo(X_train, X_test, y_train, y_test):
+    print("Loaded Data")
+    print("Train set:", X_train.shape)
+    print("Test set:", X_test.shape)
+
     # Run Random Forest Classifier
+    # Grid Search 10 - Classifier
     # clf = RandomForestClassifier(
     #     random_state=1,
-    #     max_depth=25,
+    #     max_depth=30,
     #     min_samples_leaf=2,
+    #     min_samples_split=5,
+    #     n_estimators=1200,
+    #     class_weight="balanced",
+    # )
+
+    # Grid Search 0 - Classifier
+    # clf = RandomForestClassifier(
+    #     random_state=1,
+    #     max_depth=30,
+    #     min_samples_leaf=1,
     #     min_samples_split=2,
-    #     n_estimators=500,
+    #     n_estimators=1200,
+    #     class_weight="balanced",
+    # )
+
+    # Grid Search 5 - Classifier
+    # clf = RandomForestClassifier(
+    #     random_state=1,
+    #     max_depth=30,
+    #     min_samples_leaf=2,
+    #     min_samples_split=5,
+    #     n_estimators=1200,
+    #     class_weight="balanced",
     # )
     # clf.fit(X_train, y_train)
 
     # Save the model with pickle
-    filename = "random_forest_binary_classification.sav"
+    filename = "random_forest_binary_classification_5.sav"
     # pickle.dump(clf, open(filename, "wb"))
 
     # Load Model
     loaded_model = pickle.load(open(filename, "rb"))
     y_pred = loaded_model.predict(X_test)
-    # print(result)
 
-    # y_pred = clf.predict(X_test)
-
-    # n_estimators = [100, 300, 500, 800, 1200]
-    # max_depth = [5, 8, 15, 25, 30]
-    # min_samples_split = [2, 5, 10, 15, 100]
-    # min_samples_leaf = [1, 2, 5, 10]
-
-    # hyperF = dict(
-    #     n_estimators=n_estimators,
-    #     max_depth=max_depth,
-    #     min_samples_split=min_samples_split,
-    #     min_samples_leaf=min_samples_leaf,
-    # )
-
-    # gridF = GridSearchCV(clf, hyperF, cv=3, verbose=1, n_jobs=-1)
-    # bestF = gridF.fit(X_train, y_train)
-
-    # print("Random Forest Accuracy:", metrics.accuracy_score(y_test, y_pred))
-    # print("Confustion Matrix:", confusion_matrix(y_test, y_pred))
+    print("Random Forest Accuracy:", metrics.accuracy_score(y_test, y_pred))
+    print("Confustion Matrix:", confusion_matrix(y_test, y_pred))
 
     ax = plt.gca()
     # rfc_disp = plot_roc_curve(loaded_model, X_test, y_test, ax=ax)
@@ -146,11 +153,9 @@ def RandomForestAlgo(X_train, X_test, y_train, y_test):
 
     # fpr, tpr, _ = roc_curve(y_test, y_pred)
     # label = "ROC AUC: " + str(value)
-    # seaborn.lineplot(fpr, tpr, label=label)
-    plt.title("ROC Curve Random Forest Binary Classifier")
+    # sns.lineplot(fpr, tpr, label=label)
+    plt.title("Confustion Matrix Random Forest Binary Classifier - Illnesses 5")
     plt.show()
-
-    # print("Best F:", bestF)
 
 
 def SVMAlgorithm(X_train, X_test, y_train, y_test):
@@ -162,28 +167,49 @@ def SVMAlgorithm(X_train, X_test, y_train, y_test):
     print("Defualt SVM Accuracy:", metrics.accuracy_score(y_test, y_pred))
 
 
+def death_plot(data):
+    data.sort_values(by=["years_to_death"], na_position="last")
+
+    df = data.groupby(["years_to_death"], as_index=False).count().iloc[:, 0:2]
+    df = df.sort_values(by=["FID"])
+
+    sns.barplot(x=df["years_to_death"], y=df["FID"])
+
+    print(df)
+
+    plt.show()
+
+    # print(data)
+
+
 if __name__ == "__main__":
     # Create the Data
     data_male, data_female, all_data = cd.create_data_new(
         "../research/ukbb_new_tests.csv"
     )
-    all_data = cd.calc_num_of_illnesses(all_data)
+    # all_data = cd.calc_num_of_illnesses(all_data)
+    all_data = cd.calc_time_of_death(all_data)
+    # death_plot(all_data)
+
+    # Get train and test sets
+    # X_train = np.loadtxt("X_train_5.csv", delimiter=",")
+    # y_train = np.loadtxt("y_train_5.csv", delimiter=",")
+    # X_test = np.loadtxt("X_test_5.csv", delimiter=",")
+    # y_test = np.loadtxt("y_test_5.csv", delimiter=",")
 
     # Split data into train and test and Normalize the data
     X_train, X_test, y_train, y_test, features = prep_data(all_data)
 
+    np.savetxt("X_train_death_reg.csv", X_train, delimiter=",")
+    np.savetxt("X_test_death_reg.csv", X_test, delimiter=",")
+    np.savetxt("y_train_death_reg.csv", y_train, delimiter=",")
+    np.savetxt("y_test_death_reg.csv", y_test, delimiter=",")
+
     # Run Random Forest Classifier
-    RandomForestAlgo(X_train, X_test, y_train, y_test)
+    # RandomForestAlgo(X_train, X_test, y_train, y_test)
 
     # Run SVM Classifier
     # SVMAlgorithm(X_train, X_test, y_train, y_test)
-
-    """
-    After running both classifiers these were the results:
-     - Random Forest Accuracy: 0.5081071205639206
-     - Defualt SVM Accuracy: 0.518170607310872
-
-    """
 
     # Try Running all classifiers to check which is the best
     # test_all_classifiers(X_train, X_test, y_train, y_test)

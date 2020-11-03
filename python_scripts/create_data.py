@@ -353,3 +353,20 @@ def calc_num_of_illnesses(data):
     data = data.merge(df, on="FID", how="left")
 
     return data
+
+
+def calc_time_of_death(data):
+    df = pd.read_csv("../research/death_data.csv")
+
+    df = df.filter(["eid", "40007-0.0"])
+    df = df.rename(columns={"eid": "FID"})
+
+    # Merge data
+    data = data.merge(df, on="FID", how="left")
+
+    data["40007-0.0"] = data["40007-0.0"].fillna(-1)
+
+    data["years_to_death"] = data["40007-0.0"] - data["visit_age"]
+
+    return data
+
